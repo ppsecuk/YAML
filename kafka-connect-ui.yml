@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    beta.cloud.google.com/backend-config: '{"default": "backend-security-config"}'
+    cloud.google.com/load-balancer-type: Internal
+  name: kafka-connect-ui
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    app: kafka-connect-ui
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kafka-connect-ui
+  name: kafka-connect-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-connect-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-connect-ui
+    spec:
+      containers:
+      - env:
+        - name: CONNECT_URL
+          value: http://kafka-connect
+        image: landoop/kafka-connect-ui:0.9.7
+        name: kafka-connect-ui
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            cpu: '${parameters.limits_cpu}'
+            memory: '${parameters.limits_memory}'
+          requests:
+            cpu: '${parameters.requests_cpu}'
+            memory: '${parameters.requests_memory}'
+      nodeSelector:
+        service: external

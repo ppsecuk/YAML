@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    beta.cloud.google.com/backend-config: '{"default": "backend-security-config"}'
+    cloud.google.com/load-balancer-type: Internal
+  name: kafka-connect
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: kafka-connect
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kafka-connect
+  name: kafka-connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-connect
+  template:
+    metadata:
+      labels:
+        app: kafka-connect
+    spec:
+      containers:
+      - env:
+        - name: CONNECT_SECURITY_PROTOCOL
+          value: SSL
+        - name: CONNECT_SSL_TRUSTSTORE_LOCATION
+          value: /var/secrets/kafka/kafka-truststore.jks
+        - name: CONNECT_SSL_TRUSTSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: truststore-password
+              name: kafka-credentials
+        - name: CONNECT_SSL_KEYSTORE_TYPE
+          value: PKCS12
+        - name: CONNECT_SSL_KEYSTORE_LOCATION
+          value: /var/secrets/kafka/kafka-keystore.p12
+        - name: CONNECT_SSL_KEYSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: keystore-password
+              name: kafka-credentials
+        - name: CONNECT_SSL_KEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: key-password
+              name: kafka-credentials
+        - name: CONNECT_BOOTSTRAP_SERVERS
+          value: '${ parameters.bootstrap_servers }'
+        - name: CONNECT_REST_ADVERTISED_HOST_NAME
+          value: kafka-connect
+        - name: CONNECT_REST_PORT
+          value: '80'
+        - name: CONNECT_GROUP_ID
+          value: '${ parameters.group_id }'
+        - name: CONNECT_CONFIG_STORAGE_TOPIC
+          value: '${ parameters.config_storage_topic }'
+        - name: CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR
+          value: '1'
+        - name: CONNECT_OFFSET_FLUSH_INTERVAL_MS
+          value: '10000'
+        - name: CONNECT_OFFSET_STORAGE_TOPIC
+          value: '${ parameters.offset_storage_topic }'
+        - name: CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR
+          value: '1'
+        - name: CONNECT_STATUS_STORAGE_TOPIC
+          value: '${ parameters.status_storage_topic }'
+        - name: CONNECT_STATUS_STORAGE_REPLICATION_FACTOR
+          value: '1'
+        - name: CONNECT_KEY_CONVERTER
+          value: org.apache.kafka.connect.json.JsonConverter
+        - name: CONNECT_VALUE_CONVERTER
+          value: org.apache.kafka.connect.json.JsonConverter
+        - name: CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL
+          value: '${ parameters.key_converter_schema_registry_url }'
+        - name: CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL
+          value: '${ parameters.value_converter_schema_registry_url  }'
+        - name: CONNECT_INTERNAL_KEY_CONVERTER
+          value: org.apache.kafka.connect.json.JsonConverter
+        - name: CONNECT_INTERNAL_VALUE_CONVERTER
+          value: org.apache.kafka.connect.json.JsonConverter
+        - name: CONNECT_PLUGIN_PATH
+          value: /usr/share/java,/usr/share/confluent-hub-components
+        - name: CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY
+          value: All
+        - name: CONNECT_CONSUMER_SECURITY_PROTOCOL
+          value: SSL
+        - name: CONNECT_CONSUMER_BOOTSTRAP_SERVERS
+          value: '${ parameters.consumer_bootstrap_servers }'
+        - name: SSL_ENDPOINT_IDENTIFICATION_ALGORITHM
+          value: https
+        - name: CONNECT_CONSUMER_SSL_PROTOCOL
+          value: TLS
+        - name: CONNECT_CONSUMER_SSL_TRUSTSTORE_LOCATION
+          value: /var/secrets/kafka/kafka-truststore.jks
+        - name: CONNECT_CONSUMER_SSL_TRUSTSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: truststore-password
+              name: kafka-credentials
+        - name: CONNECT_CONSUMER_SSL_KEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: key-password
+              name: kafka-credentials
+        - name: CONNECT_CONSUMER_SSL_KEYSTORE_LOCATION
+          value: /var/secrets/kafka/kafka-keystore.p12
+        - name: CONNECT_CONSUMER_SSL_KEYSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: keystore-password
+              name: kafka-credentials
+        - name: CONNECT_CONSUMER_SSL_KEYSTORE_TYPE
+          value: PKCS12
+        - name: CONNECT_CONSUMER_SSL_TRUSTSTORE_TYPE
+          value: JKS
+        image: eu.gcr.io/breakwater-development/external/kafka/kafka-connect
+        name: kafka-connect
+        ports:
+        - containerPort: 8083
+        resources:
+          limits:
+            cpu: '${parameters.limits_cpu}'
+            memory: '${parameters.limits_memory}'
+          requests:
+            cpu: '${parameters.requests_cpu}'
+            memory: '${parameters.requests_memory}'
+        volumeMounts:
+        - mountPath: /var/secrets/kafka
+          name: kafka-credentials
+        - mountPath: /var/secrets/kafka-connect
+          name: kafka-connect-bigquery
+      nodeSelector:
+        service: external
+      volumes:
+      - name: kafka-credentials
+        secret:
+          secretName: kafka-credentials
+      - name: kafka-connect-bigquery
+        secret:
+          secretName: kafka-connect-bigquery
